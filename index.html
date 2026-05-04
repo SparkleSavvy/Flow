@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Жидкий фон -->
+    <div class="fluid-bg blob-1"></div>
+    <div class="fluid-bg blob-2"></div>
+    <div class="fluid-bg blob-3"></div>
+
+    <div class="app-wrapper">
+        <header class="titlebar">
+            <div class="drag-region">
+                <img src="logo.svg" alt="Flow" class="logo-small">
+                <span>Flow</span>
+            </div>
+            <div class="header-btns">
+                <button id="history-btn" class="glass-icon-btn" title="История">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </button>
+                <button id="settings-btn" class="glass-icon-btn" title="Настройки">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+            <div class="glass-panel main-panel">
+                <div class="api-status">
+                    <div class="status-badge" id="status-ytdlp"><span class="dot"></span> yt-dlp</div>
+                    <div class="status-badge" id="status-ffmpeg"><span class="dot"></span> FFmpeg</div>
+                </div>
+
+                <div class="input-wrapper">
+                    <input type="text" id="url-input" placeholder="Вставьте ссылку на видео или плейлист...">
+                    <button id="fetch-btn" class="circle-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </button>
+                </div>
+
+                <div class="preview-card" id="preview-card">
+                    <div class="preview-img-wrapper">
+                        <img id="preview-img" src="" alt="Thumbnail">
+                        <span class="preview-duration" id="preview-duration">00:00</span>
+                    </div>
+                    <div class="preview-info">
+                        <h3 id="preview-title">Поиск видео...</h3>
+                    </div>
+                </div>
+
+                <div class="options-wrapper">
+                    <div class="format-toggles">
+                        <label class="fluid-radio">
+                            <input type="radio" name="format" value="video" checked id="radio-video">
+                            <span class="radio-btn">Видео</span>
+                        </label>
+                        <label class="fluid-radio">
+                            <input type="radio" name="format" value="audio" id="radio-audio">
+                            <span class="radio-btn">Аудио</span>
+                        </label>
+                    </div>
+                    
+                    <div class="select-wrapper">
+                        <select id="quality-select" class="fluid-select">
+                            <option value="best">Лучшее (Auto)</option>
+                            <option value="1080">1080p</option>
+                            <option value="720">720p</option>
+                        </select>
+                        <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </div>
+                </div>
+
+                <button id="download-btn" class="fluid-btn main-action-btn" disabled>Готов к работе</button>
+
+                <div class="progress-container" id="progress-container">
+                    <div class="progress-info">
+                        <span id="status-text">Загрузка...</span>
+                        <span id="percent-text">0%</span>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar"></div></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Модальное окно (Общее) -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="glass-panel modal-panel">
+            <div class="modal-header">
+                <h2 id="modal-title">Заголовок</h2>
+                <button id="close-modal" class="glass-icon-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div id="modal-content" class="modal-content-area">
+                <!-- Контент генерируется через JS -->
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
