@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
     fetchMetadata: (url) => ipcRenderer.invoke('fetch-metadata', url),
     downloadVideo: (data) => ipcRenderer.invoke('download-video', data),
     onProgress: (callback) => ipcRenderer.on('download-progress', (event, value) => callback(value)),
+    onInstallProgress: (callback) => ipcRenderer.on('install-progress', (event, msg) => callback(msg)),
     
     // Новые функции
     selectFolder: () => ipcRenderer.invoke('select-folder'),

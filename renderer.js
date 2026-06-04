@@ -10,9 +10,11 @@ const UI = {
     progressBar: document.getElementById('progress-bar'),
     statusText: document.getElementById('status-text'),
     percentText: document.getElementById('percent-text'),
-    radioVideo: document.getElementById('radio-video'),
     qualitySelect: document.getElementById('quality-select'),
-    qualityWrapper: document.querySelector('.select-wrapper'),
+    qualityWrapper: document.getElementById('quality-wrapper'),
+    checkSubtitles: document.getElementById('check-subtitles'),
+    checkPlaylist: document.getElementById('check-playlist'),
+    installStatus: document.getElementById('install-status'),
     
     // Модальные окна
     modalOverlay: document.getElementById('modal-overlay'),
@@ -30,26 +32,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Скрываем превью при запуске
     UI.previewCard.classList.add('hidden');
     
+    // Слушаем статус установки
+    window.api.onInstallProgress((msg) => {
+        UI.installStatus.style.display = 'block';
+        UI.installStatus.innerText = msg;
+        UI.downloadBtn.innerText = 'Установка компонентов...';
+        UI.downloadBtn.disabled = true;
+        UI.fetchBtn.disabled = true;
+    });
+
     try {
         const status = await window.api.checkDependencies();
+        
+        UI.installStatus.style.display = 'none';
+        UI.fetchBtn.disabled = false;
+
         if (status.ytdlp) document.querySelector('#status-ytdlp .dot').classList.add('ready');
         if (status.ffmpeg) document.querySelector('#status-ffmpeg .dot').classList.add('ready');
 
         if (status.ytdlp && status.ffmpeg) {
             UI.downloadBtn.innerText = 'Вставьте ссылку для загрузки';
         } else {
-            // ИЗМЕНЕНА СТРОЧКА НИЖЕ:
-            UI.downloadBtn.innerText = 'Ошибка: yt-dlp или ffmpeg не найдены в PATH!';
+            UI.downloadBtn.innerText = 'Ошибка: не удалось инициализировать компоненты';
         }
     } catch (e) {
-        console.error("API error");
+        console.error("API error", e);
     }
 });
 
 // Переключение Форматов (Анимация затемнения качества)
 document.querySelectorAll('input[name="format"]').forEach(radio => {
     radio.addEventListener('change', (e) => {
-        const isAudio = e.target.value === 'audio';
+        const isAudio = e.target.value === 'mp3';
         UI.qualityWrapper.style.opacity = isAudio ? '0.3' : '1';
         UI.qualityWrapper.style.pointerEvents = isAudio ? 'none' : 'auto';
         UI.qualitySelect.disabled = isAudio;
@@ -87,6 +101,8 @@ UI.downloadBtn.addEventListener('click', async () => {
 
     const format = document.querySelector('input[name="format"]:checked').value;
     const quality = UI.qualitySelect.value;
+    const subtitles = UI.checkSubtitles.checked;
+    const playlist = UI.checkPlaylist.checked;
 
     UI.progressContainer.classList.add('active');
     UI.downloadBtn.disabled = true;
@@ -97,7 +113,7 @@ UI.downloadBtn.addEventListener('click', async () => {
     try {
         const result = await window.api.downloadVideo({
             url: UI.urlInput.value.trim(),
-            format, quality,
+            format, quality, subtitles, playlist,
             title: currentMetadata.title,
             thumbnail: currentMetadata.thumbnail
         });

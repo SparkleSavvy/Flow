@@ -9,10 +9,27 @@
     "build-linux": "electron-builder --linux"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "author": "SparkleSavvy",
+  "license": "MIT",
+  "description": "Flow Video Downloader",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SparkleSavvy/Flow.git"
+  },
+  "build": {
+    "appId": "com.sparklesavvy.flow",
+    "publish": [{
+      "provider": "github",
+      "owner": "SparkleSavvy",
+      "repo": "Flow"
+    }]
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
-    "electron": "^41.5.0"
+    "electron": "^42.3.3"
   }
 }

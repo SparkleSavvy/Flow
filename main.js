@@ -1,57 +1,115 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const https = require('https');
 const { spawn, exec, execFile } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
-// Пути для хранения данных настроек и истории
+// Пути для хранения данных
 const userDataPath = app.getPath('userData');
 const historyFile = path.join(userDataPath, 'history.json');
 const settingsFile = path.join(userDataPath, 'settings.json');
+const binDir = path.join(userDataPath, 'bin');
+if (!fs.existsSync(binDir)) fs.mkdirSync(binDir);
 
-// Базовые настройки (добавили cookiesPath)
+// Базовые настройки
 let settings = { downloadFolder: app.getPath('downloads'), cookiesPath: null };
 if (fs.existsSync(settingsFile)) settings = JSON.parse(fs.readFileSync(settingsFile));
 
+let mainWindow;
+
 function createWindow() {
-    const win = new BrowserWindow({
-        width: 1000, height: 750,
-        backgroundColor: '#050608',
+    mainWindow = new BrowserWindow({
+        width: 1050, height: 750,
+        backgroundColor: '#030406',
         titleBarStyle: 'hidden',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true
         }
     });
-    win.loadFile('index.html');
+    mainWindow.loadFile('index.html');
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+    autoUpdater.checkForUpdatesAndNotify();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
+let ytdlpBin = 'yt-dlp';
+let ffmpegBin = 'ffmpeg';
+
 const checkSystemCommand = (command) => {
-    return new Promise((resolve) => {
-        exec(command, (error) => resolve(!error));
-    });
+    return new Promise((resolve) => exec(command, (error) => resolve(!error)));
 };
 
+function downloadBinary(url, destPath, name) {
+    return new Promise((resolve) => {
+        if (fs.existsSync(destPath)) return resolve(true);
+        if (mainWindow) mainWindow.webContents.send('install-progress', `Загрузка ${name}... Пожалуйста, подождите.`);
+        
+        const file = fs.createWriteStream(destPath);
+        https.get(url, (response) => {
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                return resolve(downloadBinary(response.headers.location, destPath, name));
+            }
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close();
+                fs.chmodSync(destPath, 0o755);
+                resolve(true);
+            });
+        }).on('error', () => {
+            fs.unlink(destPath, () => {});
+            resolve(false);
+        });
+    });
+}
+
 ipcMain.handle('api-check', async () => {
-    const ytdlpExists = await checkSystemCommand('yt-dlp --version');
-    const ffmpegExists = await checkSystemCommand('ffmpeg -version');
+    const platform = os.platform();
+    let ytdlpExists = await checkSystemCommand('yt-dlp --version');
+    let ffmpegExists = await checkSystemCommand('ffmpeg -version');
+
+    const ytdlpExt = platform === 'win32' ? '.exe' : '';
+    const ffmpegExt = platform === 'win32' ? '.exe' : '';
+    const localYtdlp = path.join(binDir, 'yt-dlp' + ytdlpExt);
+    const localFfmpeg = path.join(binDir, 'ffmpeg' + ffmpegExt);
+
+    if (!ytdlpExists) {
+        let ytUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+        if (platform === 'win32') ytUrl += '.exe';
+        else if (platform === 'darwin') ytUrl += '_macos';
+        
+        ytdlpExists = await downloadBinary(ytUrl, localYtdlp, 'yt-dlp');
+        if (ytdlpExists) ytdlpBin = localYtdlp;
+    }
+
+    if (!ffmpegExists) {
+        let ffUrl = 'https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/linux-x64';
+        if (platform === 'win32') ffUrl = 'https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/win32-x64';
+        else if (platform === 'darwin') ffUrl = os.arch() === 'arm64' ? 'https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/darwin-arm64' : 'https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/darwin-x64';
+        
+        ffmpegExists = await downloadBinary(ffUrl, localFfmpeg, 'FFmpeg');
+        if (ffmpegExists) ffmpegBin = localFfmpeg;
+    }
+
+    if (mainWindow) mainWindow.webContents.send('install-progress', 'Готово!');
     return { ytdlp: ytdlpExists, ffmpeg: ffmpegExists };
 });
 
 // === Безопасное получение превью (с поддержкой Cookies) ===
 ipcMain.handle('fetch-metadata', async (event, url) => {
     return new Promise((resolve, reject) => {
-        let args = ['--dump-json', url];
+        let args = ['--dump-json', url, '--no-playlist'];
         
-        // Добавляем куки, если они указаны и файл существует
         if (settings.cookiesPath && fs.existsSync(settings.cookiesPath)) {
             args.push('--cookies', settings.cookiesPath);
         }
 
-        // execFile безопаснее, чем exec (не ломается от пробелов)
-        execFile('yt-dlp', args, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+        execFile(ytdlpBin, args, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {
                 console.error("yt-dlp error:", stderr || error.message);
                 reject('Блок от YouTube (403). Добавьте файл Cookies в настройках.');
@@ -67,36 +125,47 @@ ipcMain.handle('fetch-metadata', async (event, url) => {
     });
 });
 
-// === Скачивание видео (с поддержкой Cookies) ===
-ipcMain.handle('download-video', async (event, { url, format, quality, title, thumbnail }) => {
+// === Скачивание видео ===
+ipcMain.handle('download-video', async (event, { url, format, quality, subtitles, playlist, title, thumbnail }) => {
     return new Promise((resolve, reject) => {
         let args = ['--newline'];
         
-        // Добавляем куки
         if (settings.cookiesPath && fs.existsSync(settings.cookiesPath)) {
             args.push('--cookies', settings.cookiesPath);
         }
 
-        if (format === 'audio') {
+        if (ffmpegBin !== 'ffmpeg') {
+            args.push('--ffmpeg-location', ffmpegBin);
+        }
+
+        if (playlist) args.push('--yes-playlist');
+        else args.push('--no-playlist');
+
+        if (subtitles) args.push('--write-subs', '--write-auto-subs', '--sub-langs', 'all');
+
+        if (format === 'mp3') {
             args.push('-x', '--audio-format', 'mp3', '--audio-quality', '0');
         } else {
-            let formatStr = 'bestvideo+bestaudio';
-            if (quality === '1080') formatStr = 'bestvideo[height<=1080]+bestaudio';
-            if (quality === '720') formatStr = 'bestvideo[height<=720]+bestaudio';
-            args.push('-f', formatStr, '--merge-output-format', 'mp4');
+            let formatStr = 'bestvideo+bestaudio/best';
+            if (quality === '2160') formatStr = 'bestvideo[height<=2160]+bestaudio/best';
+            else if (quality === '1440') formatStr = 'bestvideo[height<=1440]+bestaudio/best';
+            else if (quality === '1080') formatStr = 'bestvideo[height<=1080]+bestaudio/best';
+            else if (quality === '720') formatStr = 'bestvideo[height<=720]+bestaudio/best';
+            
+            args.push('-f', formatStr, '--merge-output-format', format); // mp4 или mkv
         }
         
         const outputPath = path.join(settings.downloadFolder, '%(title)s.%(ext)s');
         args.push('-o', outputPath, url);
 
-        const ytdlp = spawn('yt-dlp', args);
+        const ytdlProcess = spawn(ytdlpBin, args);
 
-        ytdlp.stdout.on('data', (data) => {
+        ytdlProcess.stdout.on('data', (data) => {
             const match = data.toString().match(/\[download\]\s+(\d+\.\d+)%/);
             if (match) event.sender.send('download-progress', parseFloat(match[1]));
         });
 
-        ytdlp.on('close', (code) => {
+        ytdlProcess.on('close', (code) => {
             if (code === 0) {
                 let history = [];
                 if (fs.existsSync(historyFile)) history = JSON.parse(fs.readFileSync(historyFile));
