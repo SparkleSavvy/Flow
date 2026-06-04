@@ -42,9 +42,10 @@ Flow is not just a utility; it's a visual experience. Designed with a **Dark Gla
 
 Because Flow runs natively and lightly, it relies on your system's environment variables. You **must** have the following installed and added to your system's `PATH`:
 
-1.  **[Node.js](https://nodejs.org/)** (v16 or higher)
-2.  **[yt-dlp](https://github.com/yt-dlp/yt-dlp/releases)** (The core downloading engine)
-3.  **[FFmpeg](https://ffmpeg.org/download.html)** (Required for merging video/audio and converting to MP3)
+1.  **[Node.js](https://nodejs.org/) (v16 or higher) / [Bun](https://bun.sh/)**
+2.  **[Deno](https://deno.com/)** (For yt-dlp)
+3.  **[yt-dlp](https://github.com/yt-dlp/yt-dlp/releases)** (The core downloading engine)
+4.  **[FFmpeg](https://ffmpeg.org/download.html)** (Required for merging video/audio and converting to MP3)
 
 *To verify your setup, open your terminal/command prompt and type `yt-dlp --version` and `ffmpeg -version`. If both return a version number, you are ready to Flow.*
 
