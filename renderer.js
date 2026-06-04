@@ -14,7 +14,6 @@ const UI = {
     qualityWrapper: document.getElementById('quality-wrapper'),
     checkSubtitles: document.getElementById('check-subtitles'),
     checkPlaylist: document.getElementById('check-playlist'),
-    installStatus: document.getElementById('install-status'),
     
     // Модальные окна
     modalOverlay: document.getElementById('modal-overlay'),
@@ -31,20 +30,10 @@ let currentMetadata = null;
 document.addEventListener('DOMContentLoaded', async () => {
     // Скрываем превью при запуске
     UI.previewCard.classList.add('hidden');
-    
-    // Слушаем статус установки
-    window.api.onInstallProgress((msg) => {
-        UI.installStatus.style.display = 'block';
-        UI.installStatus.innerText = msg;
-        UI.downloadBtn.innerText = 'Установка компонентов...';
-        UI.downloadBtn.disabled = true;
-        UI.fetchBtn.disabled = true;
-    });
 
     try {
         const status = await window.api.checkDependencies();
         
-        UI.installStatus.style.display = 'none';
         UI.fetchBtn.disabled = false;
 
         if (status.ytdlp) document.querySelector('#status-ytdlp .dot').classList.add('ready');
@@ -87,6 +76,7 @@ UI.fetchBtn.addEventListener('click', async () => {
         UI.previewCard.classList.remove('hidden');
         UI.downloadBtn.innerText = 'Скачать медиа';
         UI.downloadBtn.disabled = false;
+        if (window.api.expandWindow) window.api.expandWindow();
     } catch (err) {
         UI.downloadBtn.innerText = 'Видео не найдено';
         UI.previewCard.classList.add('hidden');
@@ -154,6 +144,8 @@ UI.modalOverlay.addEventListener('click', (e) => {
 // Настройки
 UI.settingsBtn.addEventListener('click', async () => {
     const settings = await window.api.getSettings();
+    const version = await window.api.getVersion();
+    const autoUpdate = settings.autoUpdate !== false;
     const cookiesText = settings.cookiesPath ? settings.cookiesPath : 'Не выбран';
 
     openModal('Настройки', `
@@ -172,6 +164,24 @@ UI.settingsBtn.addEventListener('click', async () => {
                 <button class="path-btn" id="change-cookies">Выбрать</button>
                 <button class="path-btn" id="clear-cookies" style="background: rgba(255,50,50,0.15); color: #ff4d4d; border-color: rgba(255,50,50,0.2);">Удалить</button>
             </div>
+        </div>
+        
+        <div class="settings-group" style="margin-top: 15px; border-top: 1px solid var(--glass-border); padding-top: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <label style="margin-bottom: 5px;">Обновления приложения</label>
+                  <p style="font-size: 13px; color: #888; margin: 0;">Версия: v${version}</p>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label class="checkbox-wrapper" style="margin: 0;">
+                        <input type="checkbox" id="auto-update-check" ${autoUpdate ? 'checked' : ''}>
+                        <span class="checkbox-box"></span>
+                        <span class="checkbox-label" style="font-size: 13px;">Авто-обновления</span>
+                    </label>
+                    <button class="path-btn" id="check-updates-btn">Проверить</button>
+                </div>
+            </div>
+            <p id="update-status" style="font-size: 13px; color: var(--accent); margin-top: 5px; display: none;"></p>
         </div>
     `);
     
@@ -199,6 +209,33 @@ UI.settingsBtn.addEventListener('click', async () => {
         const pathEl = document.getElementById('cookies-path');
         pathEl.innerText = 'Не выбран';
         pathEl.title = 'Не выбран';
+    });
+    
+    document.getElementById('auto-update-check').addEventListener('change', async (e) => {
+        await window.api.toggleAutoUpdate(e.target.checked);
+    });
+
+    document.getElementById('check-updates-btn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        const statusEl = document.getElementById('update-status');
+        btn.disabled = true;
+        btn.innerText = 'Поиск...';
+        statusEl.style.display = 'none';
+
+        const upVersion = await window.api.checkUpdates();
+        btn.disabled = false;
+        btn.innerText = 'Проверить';
+        statusEl.style.display = 'block';
+        if (upVersion === 'error') {
+            statusEl.innerText = 'Ошибка при проверке обновлений.';
+            statusEl.style.color = '#ff4d4d';
+        } else if (upVersion) {
+            statusEl.innerText = `Доступна новая версия: v${upVersion}. Она скачивается в фоне!`;
+            statusEl.style.color = 'var(--accent)';
+        } else {
+            statusEl.innerText = 'У вас установлена последняя версия.';
+            statusEl.style.color = '#888';
+        }
     });
 });
 

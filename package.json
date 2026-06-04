@@ -10,7 +10,7 @@
   },
   "keywords": [],
   "author": "SparkleSavvy",
-  "license": "MIT",
+  "license": "ISC",
   "description": "Flow Video Downloader",
   "repository": {
     "type": "git",
@@ -30,6 +30,7 @@
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "electron": "^42.3.3"
+
+    "electron": "^41.5.0"
   }
 }

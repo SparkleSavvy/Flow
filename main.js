@@ -14,10 +14,42 @@ const binDir = path.join(userDataPath, 'bin');
 if (!fs.existsSync(binDir)) fs.mkdirSync(binDir);
 
 // Базовые настройки
-let settings = { downloadFolder: app.getPath('downloads'), cookiesPath: null };
+let settings = { downloadFolder: app.getPath('downloads'), cookiesPath: null, autoUpdate: true };
 if (fs.existsSync(settingsFile)) settings = JSON.parse(fs.readFileSync(settingsFile));
 
 let mainWindow;
+let splashWindow;
+
+function createSplashWindow() {
+    splashWindow = new BrowserWindow({
+        width: 450, height: 200,
+        backgroundColor: '#030406',
+        frame: false,
+        alwaysOnTop: true,
+        webPreferences: { nodeIntegration: true, contextIsolation: false }
+    });
+    const splashHtml = `
+    <html>
+    <style>
+        body { background: #030406; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; overflow: hidden; margin: 0; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(135, 206, 235, 0.3); border-top-color: #87CEEB; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+    <body>
+        <div class="spinner"></div>
+        <h3 style="margin:0 0 10px 0; color: #87CEEB;">Flow Downloader</h3>
+        <p id="status" style="margin:0; font-size: 14px; color: #aaa;">Проверка компонентов...</p>
+        <script>
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.on('splash-progress', (e, msg) => {
+                document.getElementById('status').innerText = msg;
+            });
+        </script>
+    </body>
+    </html>
+    `;
+    splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -32,14 +64,26 @@ function createWindow() {
     mainWindow.loadFile('index.html');
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+    createSplashWindow();
+    
+    // auto update config
+    autoUpdater.autoDownload = settings.autoUpdate !== false;
+    if (settings.autoUpdate !== false) {
+        autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    }
+    
+    await checkApiComponents();
+    if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+    }
     createWindow();
-    autoUpdater.checkForUpdatesAndNotify();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 let ytdlpBin = 'yt-dlp';
 let ffmpegBin = 'ffmpeg';
+let componentsStatus = { ytdlp: false, ffmpeg: false };
 
 const checkSystemCommand = (command) => {
     return new Promise((resolve) => exec(command, (error) => resolve(!error)));
@@ -48,7 +92,7 @@ const checkSystemCommand = (command) => {
 function downloadBinary(url, destPath, name) {
     return new Promise((resolve) => {
         if (fs.existsSync(destPath)) return resolve(true);
-        if (mainWindow) mainWindow.webContents.send('install-progress', `Загрузка ${name}... Пожалуйста, подождите.`);
+        if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('splash-progress', `Загрузка ${name}... Пожалуйста, подождите.`);
         
         const file = fs.createWriteStream(destPath);
         https.get(url, (response) => {
@@ -68,7 +112,7 @@ function downloadBinary(url, destPath, name) {
     });
 }
 
-ipcMain.handle('api-check', async () => {
+async function checkApiComponents() {
     const platform = os.platform();
     let ytdlpExists = await checkSystemCommand('yt-dlp --version');
     let ffmpegExists = await checkSystemCommand('ffmpeg -version');
@@ -96,8 +140,11 @@ ipcMain.handle('api-check', async () => {
         if (ffmpegExists) ffmpegBin = localFfmpeg;
     }
 
-    if (mainWindow) mainWindow.webContents.send('install-progress', 'Готово!');
-    return { ytdlp: ytdlpExists, ffmpeg: ffmpegExists };
+    componentsStatus = { ytdlp: ytdlpExists, ffmpeg: ffmpegExists };
+}
+
+ipcMain.handle('api-check', () => {
+    return componentsStatus;
 });
 
 // === Безопасное получение превью (с поддержкой Cookies) ===
@@ -213,4 +260,32 @@ ipcMain.handle('get-settings', () => settings);
 ipcMain.handle('get-history', () => {
     if (fs.existsSync(historyFile)) return JSON.parse(fs.readFileSync(historyFile));
     return [];
+});
+
+ipcMain.handle('get-version', () => app.getVersion());
+
+ipcMain.handle('toggle-auto-update', (event, value) => {
+    settings.autoUpdate = value;
+    fs.writeFileSync(settingsFile, JSON.stringify(settings));
+    autoUpdater.autoDownload = value;
+    return value;
+});
+
+ipcMain.handle('check-updates', async () => {
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return result ? result.updateInfo.version : null;
+    } catch (e) {
+        return 'error';
+    }
+});
+
+// Увеличение окна после успешного получения данных
+ipcMain.handle('expand-window', () => {
+    if (mainWindow) {
+        const bounds = mainWindow.getBounds();
+        if (bounds.height < 850) {
+            mainWindow.setBounds({ width: bounds.width, height: 850, x: bounds.x, y: bounds.y }, true);
+        }
+    }
 });

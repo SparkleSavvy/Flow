@@ -12,5 +12,9 @@ contextBridge.exposeInMainWorld('api', {
     selectCookies: () => ipcRenderer.invoke('select-cookies'),
     clearCookies: () => ipcRenderer.invoke('clear-cookies'),
     getSettings: () => ipcRenderer.invoke('get-settings'),
-    getHistory: () => ipcRenderer.invoke('get-history')
+    getHistory: () => ipcRenderer.invoke('get-history'),
+    getVersion: () => ipcRenderer.invoke('get-version'),
+    toggleAutoUpdate: (val) => ipcRenderer.invoke('toggle-auto-update', val),
+    checkUpdates: () => ipcRenderer.invoke('check-updates'),
+    expandWindow: () => ipcRenderer.invoke('expand-window')
 });
